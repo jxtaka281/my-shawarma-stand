@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Shawarma Stand — Test Orders</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #fff7ed;
+      color: #292524;
+      font-family: Arial, sans-serif;
+    }
+
+    main {
+      max-width: 720px;
+      margin: auto;
+      padding: 28px;
+      background: white;
+      border-radius: 18px;
+      box-shadow: 0 8px 30px #00000010;
+    }
+
+    h1 { margin-top: 0; }
+    p { line-height: 1.5; }
+    label { display: block; margin-top: 18px; font-weight: bold; }
+
+    input, select, textarea, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 7px;
+      font: inherit;
+      border: 1px solid #d6d3d1;
+      border-radius: 8px;
+    }
+
+    fieldset {
+      margin-top: 20px;
+      padding: 16px;
+      border: 1px solid #fed7aa;
+      border-radius: 10px;
+    }
+
+    legend { font-weight: bold; }
+    .row { display: flex; gap: 16px; }
+    .row > label { flex: 1; margin-top: 0; }
+
+    button {
+      cursor: pointer;
+      background: #c2410c;
+      color: white;
+      border: 0;
+      font-weight: bold;
+    }
+
+    button.secondary { background: #44403c; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    [hidden] { display: none !important; }
+
+    #reply {
+      margin-top: 20px;
+      padding: 16px;
+      background: #f5f5f4;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .note { color: #57534e; font-size: 14px; }
+
+    @media (max-width: 480px) {
+      body { padding: 12px; }
+      main { padding: 18px; }
+      .row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>My Shawarma Stand</h1>
+  <p>Test an order with one or more shawarma types.
+     Make will calculate the prices.</p>
+
+  <form id="orderForm">
+    <fieldset id="orderFields">
+      <legend>Customer and order details</legend>
+
+      <label for="typedOrder">Type your order (optional)</label>
+      <textarea id="typedOrder" rows="2" placeholder="Two beef shawarmas with one hotdog each, for pickup"></textarea>
+      <button type="button" id="previewOrder">Fill menu from my message</button>
+      <p id="previewStatus" role="status" aria-live="polite"></p>
+      <label for="customerName">Customer name</label>
+      <input id="customerName" required autocomplete="name">
+
+      <p class="note">
+        Leave quantity at 0 for a product you do not want.
+        Hotdogs means the number added to each individual shawarma.
+      </p>
+
+      <fieldset>
+        <legend>Chicken shawarma</legend>
+        <div class="row">
+          <label>
+            Quantity
+            <input id="chickenQuantity" type="number"
+                   min="0" step="1" value="0" required>
+          </label>
+          <label>
+            Hotdogs per shawarma
+            <input id="chickenHotdogs" type="number"
+                   min="0" step="1" value="0" required>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Beef shawarma</legend>
+        <div class="row">
+          <label>
+            Quantity
+            <input id="beefQuantity" type="number"
+                   min="0" step="1" value="0" required>
+          </label>
+          <label>
+            Hotdogs per shawarma
+            <input id="beefHotdogs" type="number"
+                   min="0" step="1" value="0" required>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Mixed shawarma</legend>
+        <div class="row">
+          <label>
+            Quantity
+            <input id="mixedQuantity" type="number"
+                   min="0" step="1" value="0" required>
+          </label>
+          <label>
+            Hotdogs per shawarma
+            <input id="mixedHotdogs" type="number"
+                   min="0" step="1" value="0" required>
+          </label>
+        </div>
+      </fieldset>
+
+      <label for="fulfilment">Pickup or delivery</label>
+      <select id="fulfilment">
+        <option value="pickup">Pickup — No delivery fee</option>
+<option value="delivery">Delivery — NGN 500</option>
+</select>
+     <div id="addressSection" hidden>
+  <label for="deliveryAddress">
+    Delivery address — Delivery fee: NGN 500
+  </label>
+  <textarea id="deliveryAddress" rows="3"></textarea>
+</div>
+    </fieldset>
+
+    <button id="submitButton" type="submit">Submit test order</button>
+  </form>
+
+  <button id="retryButton" class="secondary" type="button" hidden>
+    Retry same order
+  </button>
+
+  <button id="duplicateButton" class="secondary" type="button" hidden>
+    Test duplicate — resend the same order
+  </button>
+
+  <button id="newButton" class="secondary" type="button" hidden>
+    Start a new order
+  </button>
+
+  <p id="reference" class="note"></p>
+  <div id="reply" role="status" aria-live="polite">
+    Your result will appear here.
+  </div>
+
+  <p class="note">
+    Keep this page open during a retry. This test page does not retain
+    pending orders after you close or refresh it.
+  </p>
+</main>
+
+<script>
+  const form = document.getElementById("orderForm");
+  const orderWebhookUrl = "YOUR_SAVE_ORDER_WEBHOOK_URL";
+  const orderFields = document.getElementById("orderFields");
+  const fulfilmentInput = document.getElementById("fulfilment");
+  const addressInput = document.getElementById("deliveryAddress");
+  const addressSection = document.getElementById("addressSection");
+
+  const submitButton = document.getElementById("submitButton");
+  const retryButton = document.getElementById("retryButton");
+  const duplicateButton = document.getElementById("duplicateButton");
+  const newButton = document.getElementById("newButton");
+  const reply = document.getElementById("reply");
+  const reference = document.getElementById("reference");
+
+  let currentOrder = null;
+  let currentWebhookUrl = "";
+  let busy = false;
+  let outcome = "idle";
+
+  function updateDeliveryFields() {
+  const delivery = fulfilmentInput.value === "delivery";
+  addressSection.hidden = !delivery;
+  addressInput.required = delivery;
+}
+
+fulfilmentInput.addEventListener("change", updateDeliveryFields);
+window.addEventListener("pageshow", updateDeliveryFields);
+updateDeliveryFields();
+
+  function updateButtons() {
+    const locked = currentOrder !== null;
+
+    orderFields.disabled = busy || locked;
+    submitButton.disabled = busy || locked;
+
+    retryButton.hidden = outcome !== "uncertain";
+    duplicateButton.hidden = outcome !== "confirmed";
+    newButton.hidden =
+      outcome !== "confirmed" && outcome !== "rejected";
+
+    retryButton.disabled = busy;
+    duplicateButton.disabled = busy;
+    newButton.disabled = busy;
+  }
+
+  const typedOrder = document.getElementById("typedOrder");
+  const previewButton = document.getElementById("previewOrder");
+  const previewStatus = document.getElementById("previewStatus");
+  const aiWebhookUrl = "YOUR_AI_PREVIEW_WEBHOOK_URL";
+  let reviewedMessage = "";
+  let previewing = false;
+
+  previewButton.addEventListener("click", async () => {
+    const message = typedOrder.value.trim();
+    if (!message || previewing || currentOrder) {
+      if (!message) typedOrder.focus();
+      return;
+    }
+    previewing = true;
+    reviewedMessage = "";
+    submitButton.disabled = true;
+    previewButton.disabled = true;
+    typedOrder.readOnly = true;
+    previewStatus.textContent = "Reading your order…";
+    try {
+      const response = await fetch(aiWebhookUrl, {
+        method: "POST",
+        body: new URLSearchParams({ message }),
+        signal: AbortSignal.timeout(45000)
+      });
+      if (!response.ok) throw new Error();
+      const draft = await response.json();
+      const lines = new Map();
+      if (!Array.isArray(draft.items) || !draft.items.length) throw new Error();
+      for (const item of draft.items) {
+        const name = String(item.product).trim().toLowerCase().replace(/ shawarmas?$/, "");
+        const qty = Number(item.quantity);
+        const extras = Number(item.hotdogs_per_shawarma ?? 0);
+        if (!["chicken", "beef", "mixed"].includes(name) ||
+            !Number.isSafeInteger(qty) || qty < 1 ||
+            !Number.isSafeInteger(extras) || extras < 0) throw new Error();
+        const previous = lines.get(name);
+        if (previous && previous.extras !== extras) throw new Error();
+        lines.set(name, { qty: qty + (previous?.qty ?? 0), extras });
+      }
+      for (const name of ["chicken", "beef", "mixed"]) {
+        document.getElementById(name + "Quantity").value = lines.get(name)?.qty ?? 0;
+        document.getElementById(name + "Hotdogs").value = lines.get(name)?.extras ?? 0;
+      }
+      if (draft.customer_name) document.getElementById("customerName").value = draft.customer_name;
+      const method = String(draft.fulfilment || "").toLowerCase();
+      if (["pickup", "delivery"].includes(method)) fulfilmentInput.value = method;
+      if (draft.delivery_address) addressInput.value = draft.delivery_address;
+      updateDeliveryFields();
+      reviewedMessage = message;
+      previewStatus.textContent = "Review the quantities, extras and pickup or delivery below, then submit your order.";
+    } catch {
+      previewStatus.textContent = "We couldn’t fill the menu. Please try again, or clear the message and choose your items below.";
+    } finally {
+      previewing = false;
+      typedOrder.readOnly = false;
+      previewButton.disabled = false;
+      updateButtons();
+    }
+  });
+  function readWholeNumber(id) {
+    const field = document.getElementById(id);
+    const value = Number(field.value);
+
+    if (
+      field.value.trim() === "" ||
+      !Number.isSafeInteger(value) ||
+      value < 0
+    ) {
+      throw new Error(
+        "Quantities and hotdog counts must be whole numbers of 0 or more."
+      );
+    }
+
+    return value;
+  }
+
+  function buildOrder() {
+    const customerName =
+      document.getElementById("customerName").value.trim();
+
+    if (!customerName) {
+      throw new Error("Please enter the customer's name.");
+    }
+
+    const products = [
+      {
+        product: "Chicken shawarma",
+        quantityId: "chickenQuantity",
+        hotdogsId: "chickenHotdogs"
+      },
+      {
+        product: "Beef shawarma",
+        quantityId: "beefQuantity",
+        hotdogsId: "beefHotdogs"
+      },
+      {
+        product: "Mixed shawarma",
+        quantityId: "mixedQuantity",
+        hotdogsId: "mixedHotdogs"
+      }
+    ];
+
+    const items = [];
+
+    for (const product of products) {
+      const quantity = readWholeNumber(product.quantityId);
+      const hotdogs = readWholeNumber(product.hotdogsId);
+
+      if (quantity > 0) {
+        items.push({
+          product: product.product,
+          quantity: quantity,
+          hotdogs_per_shawarma: hotdogs
+        });
+      }
+    }
+
+    if (items.length === 0) {
+      throw new Error("Choose at least one shawarma by increasing its quantity.");
+    }
+
+    const fulfilment = fulfilmentInput.value;
+    const address =
+      fulfilment === "delivery" ? addressInput.value.trim() : "";
+
+    if (fulfilment === "delivery" && !address) {
+      throw new Error("Please enter a delivery address.");
+    }
+
+    if (!globalThis.crypto?.randomUUID) {
+      throw new Error(
+        "Open this page using VS Code Live Server so it can generate a request ID."
+      );
+    }
+
+    return {
+      request_id: crypto.randomUUID(),
+      customer_name: customerName,
+      fulfilment: fulfilment,
+      delivery_address: address,
+      items: items
+    };
+  }
+
+  async function sendCurrentOrder() {
+    if (!currentOrder || busy) return;
+
+    busy = true;
+    updateButtons();
+    reply.textContent = "Sending your order…";
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45000);
+
+    try {
+      const response = await fetch(currentWebhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(currentOrder),
+        signal: controller.signal
+      });
+
+      const message = await response.text();
+
+      if (response.status === 400) {
+        outcome = "rejected";
+        reply.textContent =
+          "Order rejected (400).\n\n" +
+          (message || "Please correct the order details.") +
+          "\n\nClick Start a new order to edit and submit again.";
+        return;
+      }
+
+      if (
+        !response.ok ||
+        message.trim() === "" ||
+        message.trim().toLowerCase() === "accepted"
+      ) {
+        throw new Error(
+          "No confirmed order result was received. HTTP " + response.status
+        );
+      }
+
+      outcome = "confirmed";
+     reply.textContent = message;
+    } catch (error) {
+      outcome = "uncertain";
+      reply.textContent =
+        "We couldn't confirm the result.\n\n" +
+        "The order may already have been saved. Click Retry same order " +
+        "to resend the exact same details and request ID.\n\n" +
+        "If this keeps happening, check Make History. The browser may " +
+        "also be blocking access to the response.";
+    } finally {
+      clearTimeout(timeout);
+      busy = false;
+      updateButtons();
+    }
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (busy || currentOrder) return;
+
+    try {
+      if (previewing) return;
+      if (typedOrder.value.trim() && typedOrder.value.trim() !== reviewedMessage) {
+        throw new Error("Click Fill menu from my message and review the order first.");
+      }
+      const order = buildOrder();
+
+      currentWebhookUrl = orderWebhookUrl;
+      currentOrder = order;
+      outcome = "pending";
+
+      reference.textContent =
+        "Request ID for this order: " + currentOrder.request_id;
+
+      await sendCurrentOrder();
+    } catch (error) {
+      reply.textContent = error.message;
+    }
+  });
+
+  retryButton.addEventListener("click", sendCurrentOrder);
+  duplicateButton.addEventListener("click", sendCurrentOrder);
+
+  newButton.addEventListener("click", () => {
+    if (busy || outcome === "uncertain") return;
+
+    currentOrder = null;
+    currentWebhookUrl = "";
+    outcome = "idle";
+
+    reference.textContent = "";
+    reply.textContent =
+      "You can edit the details now. Submitting will generate a new request ID.";
+
+    updateButtons();
+  });
+
+  updateButtons();
+</script>
+</body>
+</html>
